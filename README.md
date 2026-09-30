@@ -17,23 +17,35 @@ a common cause of speeding tickets and accidents. The goal is a system that:
   plus a stable on-screen display of the current speed limit
 
 ## Dataset & Model Used
-**Dataset:** [Traffic Sign Detection Dataset — Kaggle (icebearogo)](https://www.kaggle.com/datasets/icebearogo/traffic-sign-detection-dataset),
-already annotated in YOLO format with train / valid / test splits.
-Classes: Green Light, Red Light, Stop and Speed Limit 10, 20, 30, … 120.
-Class balance and box-size statistics are shown in the training notebook.
+**Dataset:** [Traffic Sign Detection Dataset — Kaggle (icebearogo)](https://www.kaggle.com/datasets/icebearogo/traffic-sign-detection-dataset):
+9,534 road images with YOLO-format labels and 43 class IDs but **no class-name file**. By cropping examples of
+every class we identified the IDs as the German traffic sign standard (GTSRB: 0 = 20 km/h, 1 = 30 km/h, … 14 = Stop).
+
+**Data audit — three problems found and fixed** (evidence in the training notebook):
+
+| Problem | Evidence | Fix |
+|---|---|---|
+| Label noise | 68 % of images label *every* sign as class 0 | Drop images with only class-0 labels |
+| Mirrored copies | Each photo appears up to 6×; 54 % of copies are horizontally flipped (mirrored digits, left/right arrows swapped) | Keep original photos only |
+| Train/val leakage | 100 % of validation photos also appear in train | New split by photo |
+
+**Prepared dataset:** 503 clean 1360×800 photos, split 70/15/15 (stratified so every speed limit is in val and test),
+re-mapped to **9 classes** focused on the goal: Speed Limit 30, 50, 60, 70, 80, 100, 120, Stop, Other Sign.
 
 **Model:** YOLO11n (Ultralytics), pretrained on COCO and fine-tuned on this dataset (transfer learning).
-The nano version was chosen so the model can run in real time on a CPU.
+The nano version trains on a laptop CPU and runs in real time.
 
-**Preprocessing & augmentation:** letterbox resize to 640×640, normalisation, mosaic, random
-scale/translate, HSV colour jitter. Horizontal flip is **disabled** because mirrored digits are not valid signs.
+**Preprocessing & augmentation:** letterbox resize to 960×960 (signs are only ~37 px wide in the original photos),
+normalisation, mosaic, random scale/translate, HSV colour jitter. Horizontal flip is **disabled** because
+mirrored digits are not valid signs.
 
 ## Workflow / Architecture
 ```mermaid
 flowchart LR
-    A[Kaggle dataset<br/>YOLO labels] --> B[EDA + path fix]
-    B --> C[Augmentation<br/>mosaic · scale · HSV<br/>no flip]
-    C --> D[Fine-tune YOLO11n<br/>Google Colab T4]
+    A[Kaggle dataset<br/>9,534 images · 43 IDs] --> B[Audit + cleaning<br/>noise · mirrors · leakage]
+    B --> B2[503 photos · 9 classes<br/>stratified split]
+    B2 --> C[Augmentation<br/>mosaic · scale · HSV<br/>no flip]
+    C --> D[Fine-tune YOLO11n<br/>local CPU · 960 px]
     D --> E[Evaluation<br/>P · R · mAP · confusion matrix<br/>success / failure cases]
     D --> F[Export ONNX]
     F --> G[Video inference<br/>frame by frame]
@@ -64,31 +76,38 @@ Training curves, confusion matrix and PR curve: `results/`.
 
 ## Technologies Used
 Python · Ultralytics YOLO11 · PyTorch · OpenCV · ONNX / ONNX Runtime · pandas · matplotlib ·
-Google Colab (GPU training) · Kaggle (dataset) · Jupyter
+kagglehub · Jupyter
 
 ## How to Run the Project
-**1. Train & evaluate (Google Colab)**
-1. Open `notebooks/01_train_evaluate.ipynb` in Colab (File → Upload notebook, or open from GitHub).
-2. Runtime → Change runtime type → **T4 GPU**, then Runtime → Run all.
-3. At the end a zip downloads: put `best.pt` / `best.onnx` in `weights/` and the `results/` files in `results/`.
+Everything runs locally on CPU (tested on an Intel i7 MacBook Pro).
 
-**2. Test on a driving video (local)**
+**1. Install**
 ```bash
 python3 -m venv .venv
 ```
 ```bash
 .venv/bin/pip install -r requirements.txt
 ```
+
+**2. Train & evaluate** — `notebooks/01_train_evaluate.ipynb`
 ```bash
-.venv/bin/jupyter notebook notebooks/02_video_test.ipynb
+caffeinate -i .venv/bin/jupyter notebook notebooks/01_train_evaluate.ipynb
 ```
-Put your video in `videos/`, set `VIDEO_PATH` in the first cell, then run all cells.
-The annotated video is saved in `results/`.
+Run all cells. It downloads the dataset (3.5 GB), cleans it, trains (~7 min/epoch at 960 px, so leave it
+overnight; re-running resumes if interrupted), writes the evaluation report to `results/` and the
+weights (`best.pt`, `best.onnx`) to `weights/`.
+
+**3. Test on a driving video** — `notebooks/02_video_test.ipynb`
+
+Put your video in `videos/`, set `VIDEO_PATH` and the `SEGMENTS` to test (start/end times) in the first cell,
+then run all cells. Each segment is saved as an annotated video in `results/video/`, with a summary table
+(`video_summary.md`) and charts.
 
 ## Future Improvements
 - Higher input resolution or a second-stage digit classifier to separate look-alike limits (30/80, 50/60)
 - Larger model (YOLO11s/m) for small, distant signs
-- More data for rare classes and for Saudi road signs, night and rain conditions
+- More data: re-label the 4K subset where every sign is "class 0", add Saudi road signs, night and rain
+- Train on a GPU to use a larger model and more epochs
 - Object tracking (e.g. ByteTrack) to link detections of the same sign across frames
 - INT8 quantisation for embedded devices (Raspberry Pi, Jetson)
 
