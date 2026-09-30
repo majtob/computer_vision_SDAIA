@@ -1,0 +1,10 @@
+ultralytics>=8.3
+opencv-python
+onnxruntime
+pandas
+matplotlib
+tabulate
+jupyter
+# Intel Macs are stuck on torch 2.2, which needs NumPy 1.x
+numpy<2; sys_platform == "darwin" and platform_machine == "x86_64"
+opencv-python<4.12; sys_platform == "darwin" and platform_machine == "x86_64"

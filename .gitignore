@@ -1,0 +1,11 @@
+.venv/
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
+runs/
+datasets/
+*.zip
+# large media: keep your own video out of git, share a link instead
+videos/*
+!videos/.gitkeep
+results/*.mp4
