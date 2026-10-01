@@ -112,4 +112,4 @@ then run all cells. Each segment is saved as an annotated video in `results/vide
 - INT8 quantisation for embedded devices (Raspberry Pi, Jetson)
 
 ## SDAIA Academy GitHub Repository Link
-https://github.com/majtob/computer_vision_SDAIA
+https://github.com/SDAIAAcademy
